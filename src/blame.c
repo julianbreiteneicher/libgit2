@@ -498,14 +498,14 @@ int remove_lines_from_hunk_vector(git_vector *vec, size_t start_lineno,
 
 	while (num_lines > 0) {
 		cur_hunk = (git_blame_hunk*)git_vector_get(vec, cur_hunk_index);
-		// check if remove from beginning of hunk or middle
+		/* check if remove from beginning of hunk or middle */
 		if (start_lineno >= cur_hunk->final_start_line_number) {
-			// remove from the middle of the hunk
+			/* remove from the middle of the hunk */
 			removable_lines = (cur_hunk->final_start_line_number +
 					cur_hunk->lines_in_hunk) - start_lineno;
 			shift_node = false;
 		} else {
-			// remove from the beginning of the hunk
+			/* remove from the beginning of the hunk */
 			removable_lines = cur_hunk->lines_in_hunk;
 			shift_node = true;
 		}
@@ -519,7 +519,7 @@ int remove_lines_from_hunk_vector(git_vector *vec, size_t start_lineno,
 		if (shift_node)
 			cur_hunk->final_start_line_number += removable_lines;
 
-		// remove hunk if it became empty
+		/* remove hunk if it became empty */
 		if (cur_hunk->lines_in_hunk == 0)
 			git_vector_remove(vec, cur_hunk_index);
 		else
@@ -558,7 +558,8 @@ int merge_blame_workdir_diff(
 
 	git_vector_foreach(&wd_diff->entries, i, diff_entry) {
 		/* shift old_start by the number of lines that have been added/removed by
-		 * previous diff_entries */
+		 * previous diff_entries
+		*/
 		fprintf(stderr, "DEBUG: Updating diff_entry->old_start from %zu to",
 				diff_entry->old_start);
 		diff_entry->old_start += total_shift_count;
@@ -574,7 +575,8 @@ int merge_blame_workdir_diff(
 		}
 
 		/* Get the old hunk that is modified by the diff_entry and split it if
-		 * necessary. */
+		 * necessary.
+		*/
 		fprintf(stderr, "DEBUG: trying to get hunk by line: %zu\n",
 				diff_entry->old_start);
 
@@ -593,10 +595,11 @@ int merge_blame_workdir_diff(
 			diff_entry_delta = -diff_entry_delta;
 		}
 
-			/* Check if we need to split the old hunk.
-			 * This is the case if the modification is within the hunk.
-			 * We do not need to split if the diff_entry only removes lines and does
-			 * not add/modify any lines. */
+		/* Check if we need to split the old hunk.
+		 * This is the case if the modification is within the hunk.
+		 * We do not need to split if the diff_entry only removes lines and does
+		 * not add/modify any lines.
+		*/
 		split_hunk = NULL;
 		if (old_hunk) {
 			size_t old_hunk_start_line = old_hunk->final_start_line_number;
