@@ -47,6 +47,8 @@ typedef enum {
 	 * to canonical real names and email addresses. The mailmap will be read
 	 * from the working directory, or HEAD in a bare repository. */
 	GIT_BLAME_USE_MAILMAP = (1<<5),
+	/** TODO (julianbreiteneicher): Document) */
+	GIT_BLAME_INCLUDE_UNCOMMITTED_CHANGES = (1<<6),
 } git_blame_flag_t;
 
 /**
