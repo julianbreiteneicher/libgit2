@@ -488,7 +488,6 @@ int remove_lines_from_hunk_vector(git_vector *vec, size_t start_lineno,
 	size_t cur_hunk_index;
 	size_t removable_lines;
 	bool shift_node;
-	//long total_remove_lines = num_lines;
 
 	if (num_lines == 0)
 		return GIT_OK;
@@ -544,7 +543,6 @@ int merge_blame_workdir_diff(
 	git_blame_hunk *split_hunk;
 	int diff_entry_delta;
 
-	// signature to use for uncommitted hunks
 	git_signature *sig_uncommitted;
 	git_signature_now(&sig_uncommitted, "Not Committed Yet", "not.committed.yet");
 
@@ -618,14 +616,6 @@ int merge_blame_workdir_diff(
 						split_hunk->lines_in_hunk);
 			}
 
-			// TODO: this is wrong; this assumes that all lines that have to be
-			// removed are in one hunk only, but in fact they can span multiple
-			// hunks;
-			// so instead of removing x lines from one hunk, we need to remove
-			// old_lines lines starting from the line old_start
-
-			// TODO: old_lines > 0 check not needed
-
 			/* Check if we need to remove lines from the old hunk */
 			fprintf(stderr, "DEBUG: entry->old_lines: %zu\n", diff_entry->old_lines);
 			if (diff_entry->old_lines > 0) {
@@ -636,56 +626,11 @@ int merge_blame_workdir_diff(
 						diff_entry->old_lines);
 				print_hunk_vector(&blame->hunks);
 			}
-			//if (diff_entry->old_lines > 0) {
-			//  // correct?
-			//  // same as diff_entry_delta?
-			//  //size_t remove_lines = diff_entry->new_lines - diff_entry->old_lines;
-
-			//  git_blame_hunk *cur_hunk;
-			//  if (split_hunk) {
-			//    cur_hunk = split_hunk;
-			//  } else {
-			//    cur_hunk = old_hunk;
-			//  }
-
-			//  fprintf(stderr,
-			//      "DEBUG: Removing lines from old hunk (no split):  %ld\n",
-			//      diff_entry->old_lines);
-			//  fprintf(stderr, "DEBUG: Before:  %zu\n", cur_hunk->lines_in_hunk);
-			//  cur_hunk->lines_in_hunk -= diff_entry->old_lines;
-			//  fprintf(stderr, "DEBUG: After:  %zu\n", cur_hunk->lines_in_hunk);
-			//  /* if hunk becomes empty, remove it */
-			//  if (cur_hunk->lines_in_hunk == 0) {
-			//    git_vector_remove(&blame->hunks, old_hunk_index + 1);
-			//  }
-			//}
 		}
 
 		/* Shift subsequent hunks if necessary */
-
-		//size_t shift_start_line = entry->new_start;
-		//if (entry->old_lines > 0) {
-		//  shift_start_line += diff_entry_delta;
-		//}
-
-		// where do we start to shift?
-		// shiften ab neuem hunk um diff_entry_delta?
-		//size_t shift_start_line =
-		//  old_hunk->final_start_line_number + old_hunk->lines_in_hunk;
-		//if (diff_entry->old_lines > 0) {
-		//  // + oder -; warum?
-		//  shift_start_line -= diff_entry_delta;
-		//}
-
-		// nicht diff_entry_delta abziehen, sondern nur, was in diesem block
-		// abgezogen worden ist
-		//fprintf(stderr, "DEBUG: Shift index: %zu + %zu - %ld = %zu\n",
-		//old_hunk->final_start_line_number, old_hunk->lines_in_hunk,
-		//  diff_entry_delta, shift_start_line);
-
 		print_hunk_vector(&blame->hunks);
 
-		// new attempt 2
 		if (diff_entry_delta != 0) {
 			//////////////////////////////////////////////////////////////////////////
 			git_blame_hunk *tmp_hunk =
