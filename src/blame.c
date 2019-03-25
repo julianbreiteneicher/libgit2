@@ -685,8 +685,9 @@ static int merge_blame_workdir_diff(
 
 	blame->num_lines += total_shift_count;
 
-	// TODO: Implemenent additional blame fields:
-	// final_blob, final_buf, final_buf_size, line_index
+	/* TODO: Implemenent additional blame fields:
+	 * final_blob, final_buf, final_buf_size, line_index
+	*/
 
 	return 0;
 }
@@ -728,8 +729,9 @@ static int git_blame_new_file(
 		goto on_error;
 	git_vector_insert(&blame->hunks, nhunk);
 
-	// TODO: Implemenent additional blame fields:
-	// final_blob, final_buf, final_buf_size, line_index
+	/* TODO: Implemenent additional blame fields:
+	 * final_blob, final_buf, final_buf_size, line_index
+	*/
 
 	git_blob_free(blob);
 
@@ -783,7 +785,7 @@ int git_blame_file(
 		} else {
 			goto on_error;
 		}
-  }
+	}
 
 	if ((error = blame_internal(blame)) < 0)
 		goto on_error;
