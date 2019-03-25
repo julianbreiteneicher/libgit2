@@ -48,7 +48,8 @@ typedef enum {
 	 * from the working directory, or HEAD in a bare repository. */
 	GIT_BLAME_USE_MAILMAP = (1<<5),
 	/** Include uncommitted changes from the workdir in the blame (like
-	 * 'git blame <file>'). */
+	 * 'git blame <file>').
+	 * Ignored if the blame options' 'newest_commit' field is not HEAD. */
 	GIT_BLAME_INCLUDE_UNCOMMITTED_CHANGES = (1<<6),
 } git_blame_flag_t;
 

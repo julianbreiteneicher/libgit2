@@ -758,6 +758,8 @@ int git_blame_file(
 	git_object *obj = NULL;
 	git_tree *tree = NULL;
 	git_strarray file_paths = {0};
+	git_oid oid_head;
+	git_reference_name_to_id(&oid_head, repo, "HEAD");
 
 	// TODO (julianbreiteneicher): Include in VaRA
 	options->flags |= GIT_BLAME_INCLUDE_UNCOMMITTED_CHANGES;
@@ -786,51 +788,56 @@ int git_blame_file(
 	if ((error = blame_internal(blame)) < 0)
 		goto on_error;
 
-	/////////////////////////////////////////////////////////////////////////////
-	fprintf(stderr, "\n");
-	fprintf(stderr, "DEBUG: path: %s\n\n", blame->path);
-	//fprintf(stderr, "DEBUG: repository: %s\n\n", blame->repository->gitdir);
-	fprintf(stderr, "DEBUG: git_blame_options flags: %x\n\n", options->flags);
+	if (normOptions.flags & GIT_BLAME_INCLUDE_UNCOMMITTED_CHANGES &&
+			git_oid_equal(&oid_head, &normOptions.newest_commit)) {
+		////////////////////////////////////////////////////////////////////////////
+		fprintf(stderr, "\n");
+		fprintf(stderr, "DEBUG: path: %s\n\n", blame->path);
+		//fprintf(stderr, "DEBUG: repository: %s\n\n", blame->repository->gitdir);
+		fprintf(stderr, "DEBUG: git_blame_options flags: %x\n\n", options->flags);
 
-	print_hunk_vector_full(&blame->hunks);
+		print_hunk_vector_full(&blame->hunks);
 
-	if ((error = git_revparse_single(&obj, repo, "HEAD^{tree}")) < 0)
-		goto on_error;
+		if ((error = git_revparse_single(&obj, repo, "HEAD^{tree}")) < 0)
+			goto on_error;
 
-	if ((error = git_tree_lookup(&tree, repo, git_object_id(obj))) < 0)
-		goto on_error;
+		if ((error = git_tree_lookup(&tree, repo, git_object_id(obj))) < 0)
+			goto on_error;
 
-	if ((error = git_diff_init_options(&diff_options, GIT_DIFF_OPTIONS_VERSION))
-			< 0)
-		goto on_error;
+		if ((error = git_diff_init_options(&diff_options, GIT_DIFF_OPTIONS_VERSION))
+				< 0)
+			goto on_error;
 
-	file_paths.count = 1;
-	file_paths.strings = malloc(sizeof(char *));
-	if (!file_paths.strings)
-		goto on_error;
-	file_paths.strings[0] = blame->path;
+		file_paths.count = 1;
+		file_paths.strings = malloc(sizeof(char *));
+		if (!file_paths.strings)
+			goto on_error;
+		file_paths.strings[0] = blame->path;
 
-	/* only diff the currently blamed file */
-	diff_options.pathspec = file_paths;
-	/* disable binary file detection (assume source code file is text) */
-	diff_options.max_size = 0;
-	/* don't include unchanged lines in hunk */
-	diff_options.context_lines = 0;
-	/* never merge hunks if there is at least one unchanged line between them */
-	diff_options.interhunk_lines = 0;
+		/* only diff the currently blamed file */
+		diff_options.pathspec = file_paths;
+		/* disable binary file detection (assume source code file is text) */
+		diff_options.max_size = 0;
+		/* don't include unchanged lines in hunk */
+		diff_options.context_lines = 0;
+		/* never merge hunks if there is at least one unchanged line between them */
+		diff_options.interhunk_lines = 0;
 
-	if ((error = git_diff_tree_to_workdir(&diff, repo, tree, &diff_options)) < 0)
-		goto on_error;
+		if ((error = git_diff_tree_to_workdir(&diff, repo, tree, &diff_options))
+				< 0)
+			goto on_error;
 
-	fprintf(stderr, "DEBUG: diff->deltas.length: %zu\n", diff->deltas.length);
+		fprintf(stderr, "DEBUG: diff->deltas.length: %zu\n", diff->deltas.length);
 
-	wd_diff =  new_git_blame_workdir_diff();
-	if ((error = git_diff_foreach(
-					diff, NULL, NULL, process_workdir_diff_hunk, NULL, wd_diff)) < 0)
-		goto on_error;
+		wd_diff =  new_git_blame_workdir_diff();
+		if ((error = git_diff_foreach(
+						diff, NULL, NULL, process_workdir_diff_hunk, NULL, wd_diff)) < 0)
+			goto on_error;
 
-	// TODO: Add error handling
-	merge_blame_workdir_diff(blame, wd_diff, blame->path);
+		// TODO: Add error handling
+		merge_blame_workdir_diff(blame, wd_diff, blame->path);
+
+	}
 
 	print_hunk_vector_full(&blame->hunks);
 	printf_hunk_vector_blame(&blame->hunks);
