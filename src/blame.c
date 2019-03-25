@@ -438,8 +438,8 @@ static git_blame_workdir_diff *new_git_blame_workdir_diff()
 	if (!diff)
 		return NULL;
 
-	if (git_vector_init(&diff->entries, 8, git_blame_workdir_diff_entry_cmp) <
-			0) {
+	if (git_vector_init(&diff->entries, 8, git_blame_workdir_diff_entry_cmp)
+			< 0) {
 		free_git_blame_workdir_diff(diff);
 		return NULL;
 	}
@@ -447,8 +447,10 @@ static git_blame_workdir_diff *new_git_blame_workdir_diff()
 	return diff;
 }
 
-static int process_workdir_diff_hunk(const git_diff_delta *delta,
-		const git_diff_hunk *hunk, void *payload)
+static int process_workdir_diff_hunk(
+		const git_diff_delta *delta,
+		const git_diff_hunk *hunk,
+		void *payload)
 {
 	git_blame_workdir_diff_entry *entry;
 	git_blame_workdir_diff *wd_diff = (git_blame_workdir_diff *)payload;
@@ -504,8 +506,11 @@ static void printf_hunk_vector_blame(git_vector *vec)
 	}
 }
 
-static int remove_lines_from_hunk_vector(git_vector *vec, size_t start_lineno,
-		size_t num_lines) {
+static int remove_lines_from_hunk_vector(
+		git_vector *vec,
+		size_t start_lineno,
+		size_t num_lines)
+{
 	git_blame_hunk *cur_hunk;
 	size_t cur_hunk_index;
 	size_t removable_lines;
