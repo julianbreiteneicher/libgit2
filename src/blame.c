@@ -713,7 +713,6 @@ static int git_blame_new_file(
 	rawsize = git_blob_rawsize(blob);
 	rawdata = git_blob_rawcontent(blob);
 
-	// TODO: Test if this works with windows line endings
 	p = rawdata;
 	while ((p = memchr(p, '\n', ((rawdata + rawsize) - p)))) {
 		p++;
