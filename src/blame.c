@@ -112,8 +112,6 @@ static void shift_hunks_by(git_vector *v, size_t start_line, int shift_by)
 	if (!git_vector_bsearch2(&i, v, hunk_byfinalline_search_cmp, &start_line)) {
 		for (; i < v->length; i++) {
 			git_blame_hunk *hunk = (git_blame_hunk*)v->contents[i];
-      fprintf(stderr, "DEBUG: Shifting hunk %zu (%zu, %zu) by %d.\n",
-          i, hunk->final_start_line_number, hunk->lines_in_hunk, shift_by);
 			hunk->final_start_line_number += shift_by;
 		}
 	}
