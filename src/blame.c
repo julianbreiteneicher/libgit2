@@ -574,7 +574,7 @@ static int merge_blame_workdir_diff(
 	//////////////////////////////////////////////////////////
 	fprintf(stderr, "\n");
 	git_vector_foreach(&wd_diff->entries, i, diff_entry) {
-		fprintf(stderr, "DEBUG: wd_diff_entry: (%d, %d, %d, %d)\n",
+		fprintf(stderr, "DEBUG: wd_diff_entry: (%zu, %zu, %zu, %zu)\n",
 				diff_entry->old_start, diff_entry->old_lines,
 				diff_entry->new_start, diff_entry->new_lines);
 	}
@@ -699,15 +699,14 @@ static int git_blame_new_file(
 	git_oid oid;
 	git_blob *blob = NULL;
 	size_t rawsize;
-	const char *rawdata;
+	const char *rawdata, *p;
 	size_t lines = 0;
-	char *p;
 	git_blame_hunk *nhunk = NULL;
 
-	if (error = git_blob_create_fromworkdir(&oid, repo, path))
+	if ((error = git_blob_create_fromworkdir(&oid, repo, path)) < 0)
 		goto on_error;
 
-	if (error = git_blob_lookup(&blob, repo, &oid))
+	if ((error = git_blob_lookup(&blob, repo, &oid)) < 0)
 		goto on_error;
 
 	rawsize = git_blob_rawsize(blob);
@@ -750,18 +749,18 @@ int git_blame_file(
 		const char *path,
 		git_blame_options *options)
 {
-	// TODO (julianbreiteneicher): Include in VaRA
-	options->flags |= GIT_BLAME_INCLUDE_UNCOMMITTED_CHANGES;
-
 	int error = -1;
 	git_blame_options normOptions = GIT_BLAME_OPTIONS_INIT;
 	git_blame *blame = NULL;
 	git_diff *diff = NULL;
 	git_diff_options diff_options;
-	git_blame_workdir_diff *wd_diff;
+	git_blame_workdir_diff *wd_diff = NULL;
 	git_object *obj = NULL;
 	git_tree *tree = NULL;
 	git_strarray file_paths = {0};
+
+	// TODO (julianbreiteneicher): Include in VaRA
+	options->flags |= GIT_BLAME_INCLUDE_UNCOMMITTED_CHANGES;
 
 	assert(out && repo && path);
 	if ((error = normalize_options(&normOptions, options, repo)) < 0) {
@@ -774,7 +773,7 @@ int git_blame_file(
 
 	if ((error = load_blob(blame)) < 0) {
 		if (normOptions.flags & GIT_BLAME_INCLUDE_UNCOMMITTED_CHANGES) {
-			if (error = git_blame_new_file(blame, repo, path))
+			if ((error = git_blame_new_file(blame, repo, path)) < 0)
 				goto on_error;
 			print_hunk_vector_short(&blame->hunks);
 			*out = blame;
