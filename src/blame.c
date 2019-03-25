@@ -683,10 +683,7 @@ static int merge_blame_workdir_diff(
 	return 0;
 }
 
-static int git_blame_new_file(
-		git_blame *blame,
-		git_repository *repo,
-		const char *path)
+static int git_blame_new_file(git_blame *blame)
 {
 	int error;
 	git_oid oid;
@@ -695,16 +692,18 @@ static int git_blame_new_file(
 	git_signature *sig_uncommitted;
 	git_signature_now(&sig_uncommitted, "Not Committed Yet", "not.committed.yet");
 
-	if ((error = git_blob_create_fromworkdir(&oid, repo, path)) < 0)
+	if ((error = git_blob_create_fromworkdir(
+					&oid, blame->repository, blame->path)) < 0)
 		return error;
-	if ((error = git_blob_lookup(&blame->final_blob, repo, &oid)) < 0)
+	if ((error = git_blob_lookup(
+					&blame->final_blob, blame->repository, &oid)) < 0)
 		return error;
 	blame->final_buf = git_blob_rawcontent(blame->final_blob);
 	blame->final_buf_size = git_blob_rawsize(blame->final_blob);
 
 	index_blob_lines(blame);
 
-	nhunk = new_hunk(1, blame->num_lines, 1, path);
+	nhunk = new_hunk(1, blame->num_lines, 1, blame->path);
 	if (!nhunk) {
 		free_hunk(nhunk);
 		return GIT_ERROR;
@@ -714,14 +713,10 @@ static int git_blame_new_file(
 
 	git_vector_insert(&blame->hunks, nhunk);
 
-	fprintf(stderr, "new_file num_lines: %d\n", blame->num_lines);
-
 	return 0;
 }
 
-static int update_blame_with_uncommitted_changes(
-		git_blame *blame,
-		git_repository *repo)
+static int update_blame_with_uncommitted_changes(git_blame *blame)
 {
 	int error;
 	git_object *obj = NULL;
@@ -738,10 +733,11 @@ static int update_blame_with_uncommitted_changes(
 
 	print_hunk_vector_full(&blame->hunks);
 
-	if ((error = git_revparse_single(&obj, repo, "HEAD^{tree}")) < 0)
+	if ((error = git_revparse_single(&obj, blame->repository, "HEAD^{tree}")) < 0)
 		goto on_error;
 
-	if ((error = git_tree_lookup(&tree, repo, git_object_id(obj))) < 0)
+	if ((error = git_tree_lookup(&tree, blame->repository, git_object_id(obj)))
+			< 0)
 		goto on_error;
 
 	if ((error = git_diff_init_options(&diff_options, GIT_DIFF_OPTIONS_VERSION))
@@ -759,8 +755,8 @@ static int update_blame_with_uncommitted_changes(
 	diff_options.context_lines = 0;
 	diff_options.interhunk_lines = 0;
 
-	if ((error = git_diff_tree_to_workdir(&diff, repo, tree, &diff_options))
-			< 0)
+	if ((error = git_diff_tree_to_workdir(
+					&diff, blame->repository, tree, &diff_options)) < 0)
 		goto on_error;
 
 	fprintf(stderr, "DEBUG: diff->deltas.length: %zu\n", diff->deltas.length);
@@ -776,9 +772,11 @@ static int update_blame_with_uncommitted_changes(
 	// TODO: Add error handling
 	merge_blame_workdir_diff(blame, wd_diff, blame->path);
 
-	if ((error = git_blob_create_fromworkdir(&oid, repo, blame->path)) < 0)
+	if ((error = git_blob_create_fromworkdir(
+					&oid, blame->repository, blame->path)) < 0)
 		goto on_error;
-	if ((error = git_blob_lookup(&blame->final_blob, repo, &oid)) < 0)
+	if ((error = git_blob_lookup(&blame->final_blob, blame->repository, &oid))
+			< 0)
 		goto on_error;
 	blame->final_buf = git_blob_rawcontent(blame->final_blob);
 	blame->final_buf_size = git_blob_rawsize(blame->final_blob);
@@ -829,7 +827,7 @@ int git_blame_file(
 
 	if ((error = load_blob(blame)) < 0) {
 		if (normOptions.flags & GIT_BLAME_INCLUDE_UNCOMMITTED_CHANGES) {
-			if ((error = git_blame_new_file(blame, repo, path)) < 0)
+			if ((error = git_blame_new_file(blame)) < 0)
 				goto on_error;
 			*out = blame;
 			return 0;
@@ -843,7 +841,7 @@ int git_blame_file(
 
 	if (normOptions.flags & GIT_BLAME_INCLUDE_UNCOMMITTED_CHANGES &&
 			git_oid_equal(&oid_head, &normOptions.newest_commit)) {
-		if ((error = update_blame_with_uncommitted_changes(blame, repo)) < 0)
+		if ((error = update_blame_with_uncommitted_changes(blame)) < 0)
 			goto on_error;
 	}
 
