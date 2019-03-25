@@ -512,7 +512,7 @@ static int remove_lines_from_hunk_vector(git_vector *vec, size_t start_lineno,
 	bool shift_node;
 
 	if (num_lines == 0)
-		return GIT_OK;
+		return 0;
 
 	if (git_vector_bsearch2(&cur_hunk_index, vec, hunk_byfinalline_search_cmp,
 			&start_lineno))
@@ -541,14 +541,13 @@ static int remove_lines_from_hunk_vector(git_vector *vec, size_t start_lineno,
 		if (shift_node)
 			cur_hunk->final_start_line_number += removable_lines;
 
-		/* remove hunk if it became empty */
 		if (cur_hunk->lines_in_hunk == 0)
 			git_vector_remove(vec, cur_hunk_index);
 		else
 			cur_hunk_index++;
 	}
 
-	return GIT_OK;
+	return 0;
 }
 
 static int merge_blame_workdir_diff(
@@ -739,6 +738,77 @@ static int git_blame_new_file(
 		return error;
 }
 
+static int update_blame_with_uncommitted_changes(
+		git_blame *blame,
+		git_repository *repo)
+{
+	int error;
+	git_object *obj = NULL;
+	git_tree *tree = NULL;
+	git_diff_options diff_options;
+	git_strarray diff_file_paths = {0};
+	git_diff *diff = NULL;
+	git_blame_workdir_diff *wd_diff = NULL;
+
+	fprintf(stderr, "\n");
+	fprintf(stderr, "DEBUG: path: %s\n\n", blame->path);
+	fprintf(stderr, "DEBUG: repository: %s\n\n", blame->repository->gitdir);
+
+	print_hunk_vector_full(&blame->hunks);
+
+	if ((error = git_revparse_single(&obj, repo, "HEAD^{tree}")) < 0)
+		goto on_error;
+
+	if ((error = git_tree_lookup(&tree, repo, git_object_id(obj))) < 0)
+		goto on_error;
+
+	if ((error = git_diff_init_options(&diff_options, GIT_DIFF_OPTIONS_VERSION))
+			< 0)
+		goto on_error;
+
+	diff_file_paths.count = 1;
+	diff_file_paths.strings = malloc(sizeof(char *));
+	if (!diff_file_paths.strings)
+		goto on_error;
+	diff_file_paths.strings[0] = blame->path;
+
+	diff_options.pathspec = diff_file_paths;
+	diff_options.max_size = 0;
+	diff_options.context_lines = 0;
+	diff_options.interhunk_lines = 0;
+
+	if ((error = git_diff_tree_to_workdir(&diff, repo, tree, &diff_options))
+			< 0)
+		goto on_error;
+
+	fprintf(stderr, "DEBUG: diff->deltas.length: %zu\n", diff->deltas.length);
+
+	wd_diff =  new_git_blame_workdir_diff();
+	if (!wd_diff)
+		goto on_error;
+
+	if ((error = git_diff_foreach(
+					diff, NULL, NULL, process_workdir_diff_hunk, NULL, wd_diff)) < 0)
+		goto on_error;
+
+	// TODO: Add error handling
+	merge_blame_workdir_diff(blame, wd_diff, blame->path);
+
+	print_hunk_vector_full(&blame->hunks);
+	printf_hunk_vector_blame(&blame->hunks);
+
+	error = 0;
+
+on_error:
+	free_git_blame_workdir_diff(wd_diff);
+	git_diff_free(diff);
+	free(diff_file_paths.strings);
+	git_tree_free(tree);
+	git_object_free(obj);
+
+	return error;
+}
+
 /*******************************************************************************
  * File blaming
  ******************************************************************************/
@@ -752,23 +822,15 @@ int git_blame_file(
 	int error = -1;
 	git_blame_options normOptions = GIT_BLAME_OPTIONS_INIT;
 	git_blame *blame = NULL;
-	git_diff *diff = NULL;
-	git_diff_options diff_options;
-	git_blame_workdir_diff *wd_diff = NULL;
-	git_object *obj = NULL;
-	git_tree *tree = NULL;
-	git_strarray file_paths = {0};
 	git_oid oid_head;
 	git_reference_name_to_id(&oid_head, repo, "HEAD");
 
-	// TODO (julianbreiteneicher): Include in VaRA
+	// TODO (julianbreiteneicher): Include in VaRA / Remove
 	options->flags |= GIT_BLAME_INCLUDE_UNCOMMITTED_CHANGES;
 
 	assert(out && repo && path);
-	if ((error = normalize_options(&normOptions, options, repo)) < 0) {
-		fprintf(stderr, "DEBUG: git_blame_file: Error in normalize_options()\n");
+	if ((error = normalize_options(&normOptions, options, repo)) < 0)
 		goto on_error;
-	}
 
 	blame = git_blame__alloc(repo, normOptions, path);
 	GIT_ERROR_CHECK_ALLOC(blame);
@@ -777,7 +839,6 @@ int git_blame_file(
 		if (normOptions.flags & GIT_BLAME_INCLUDE_UNCOMMITTED_CHANGES) {
 			if ((error = git_blame_new_file(blame, repo, path)) < 0)
 				goto on_error;
-			print_hunk_vector_short(&blame->hunks);
 			*out = blame;
 			return 0;
 		} else {
@@ -790,71 +851,14 @@ int git_blame_file(
 
 	if (normOptions.flags & GIT_BLAME_INCLUDE_UNCOMMITTED_CHANGES &&
 			git_oid_equal(&oid_head, &normOptions.newest_commit)) {
-		////////////////////////////////////////////////////////////////////////////
-		fprintf(stderr, "\n");
-		fprintf(stderr, "DEBUG: path: %s\n\n", blame->path);
-		//fprintf(stderr, "DEBUG: repository: %s\n\n", blame->repository->gitdir);
-		fprintf(stderr, "DEBUG: git_blame_options flags: %x\n\n", options->flags);
-
-		print_hunk_vector_full(&blame->hunks);
-
-		if ((error = git_revparse_single(&obj, repo, "HEAD^{tree}")) < 0)
+		if ((error = update_blame_with_uncommitted_changes(blame, repo)) < 0)
 			goto on_error;
-
-		if ((error = git_tree_lookup(&tree, repo, git_object_id(obj))) < 0)
-			goto on_error;
-
-		if ((error = git_diff_init_options(&diff_options, GIT_DIFF_OPTIONS_VERSION))
-				< 0)
-			goto on_error;
-
-		file_paths.count = 1;
-		file_paths.strings = malloc(sizeof(char *));
-		if (!file_paths.strings)
-			goto on_error;
-		file_paths.strings[0] = blame->path;
-
-		/* only diff the currently blamed file */
-		diff_options.pathspec = file_paths;
-		/* disable binary file detection (assume source code file is text) */
-		diff_options.max_size = 0;
-		/* don't include unchanged lines in hunk */
-		diff_options.context_lines = 0;
-		/* never merge hunks if there is at least one unchanged line between them */
-		diff_options.interhunk_lines = 0;
-
-		if ((error = git_diff_tree_to_workdir(&diff, repo, tree, &diff_options))
-				< 0)
-			goto on_error;
-
-		fprintf(stderr, "DEBUG: diff->deltas.length: %zu\n", diff->deltas.length);
-
-		wd_diff =  new_git_blame_workdir_diff();
-		if ((error = git_diff_foreach(
-						diff, NULL, NULL, process_workdir_diff_hunk, NULL, wd_diff)) < 0)
-			goto on_error;
-
-		// TODO: Add error handling
-		merge_blame_workdir_diff(blame, wd_diff, blame->path);
-
 	}
-
-	print_hunk_vector_full(&blame->hunks);
-	printf_hunk_vector_blame(&blame->hunks);
-
-	git_object_free(obj);
-	git_tree_free(tree);
-	git_diff_free(diff);
-	free_git_blame_workdir_diff(wd_diff);
 
 	*out = blame;
 	return 0;
 
 on_error:
-	git_object_free(obj);
-	git_tree_free(tree);
-	git_diff_free(diff);
-	free_git_blame_workdir_diff(wd_diff);
 	git_blame_free(blame);
 	return error;
 }
