@@ -680,12 +680,6 @@ static int merge_blame_workdir_diff(
 			git_vector_insert_sorted(&blame->hunks, nhunk, NULL);
 	}
 
-	blame->num_lines += total_shift_count;
-
-	/* TODO: Implemenent additional blame fields:
-	 * final_blob, final_buf, final_buf_size, line_index
-	*/
-
 	return 0;
 }
 
@@ -696,46 +690,33 @@ static int git_blame_new_file(
 {
 	int error;
 	git_oid oid;
-	git_blob *blob = NULL;
-	size_t rawsize;
-	const char *rawdata, *p;
-	size_t lines = 0;
 	git_blame_hunk *nhunk = NULL;
 
+	git_signature *sig_uncommitted;
+	git_signature_now(&sig_uncommitted, "Not Committed Yet", "not.committed.yet");
+
 	if ((error = git_blob_create_fromworkdir(&oid, repo, path)) < 0)
-		goto on_error;
+		return error;
+	if ((error = git_blob_lookup(&blame->final_blob, repo, &oid)) < 0)
+		return error;
+	blame->final_buf = git_blob_rawcontent(blame->final_blob);
+	blame->final_buf_size = git_blob_rawsize(blame->final_blob);
 
-	if ((error = git_blob_lookup(&blob, repo, &oid)) < 0)
-		goto on_error;
+	index_blob_lines(blame);
 
-	rawsize = git_blob_rawsize(blob);
-	rawdata = git_blob_rawcontent(blob);
-
-	p = rawdata;
-	while ((p = memchr(p, '\n', ((rawdata + rawsize) - p)))) {
-		p++;
-		lines++;
+	nhunk = new_hunk(1, blame->num_lines, 1, path);
+	if (!nhunk) {
+		free_hunk(nhunk);
+		return GIT_ERROR;
 	}
+	git_signature_dup(&nhunk->final_signature, sig_uncommitted);
+	git_signature_dup(&nhunk->orig_signature, sig_uncommitted);
 
-	blame->num_lines = lines;
-
-	nhunk = new_hunk(1, lines, 1, path);
-	if (!nhunk)
-		goto on_error;
 	git_vector_insert(&blame->hunks, nhunk);
 
-	/* TODO: Implemenent additional blame fields:
-	 * final_blob, final_buf, final_buf_size, line_index
-	*/
-
-	git_blob_free(blob);
+	fprintf(stderr, "new_file num_lines: %d\n", blame->num_lines);
 
 	return 0;
-
-	on_error:
-		git_blob_free(blob);
-		free_hunk(nhunk);
-		return error;
 }
 
 static int update_blame_with_uncommitted_changes(
@@ -749,6 +730,7 @@ static int update_blame_with_uncommitted_changes(
 	git_strarray diff_file_paths = {0};
 	git_diff *diff = NULL;
 	git_blame_workdir_diff *wd_diff = NULL;
+	git_oid oid;
 
 	fprintf(stderr, "\n");
 	fprintf(stderr, "DEBUG: path: %s\n\n", blame->path);
@@ -793,6 +775,16 @@ static int update_blame_with_uncommitted_changes(
 
 	// TODO: Add error handling
 	merge_blame_workdir_diff(blame, wd_diff, blame->path);
+
+	if ((error = git_blob_create_fromworkdir(&oid, repo, blame->path)) < 0)
+		goto on_error;
+	if ((error = git_blob_lookup(&blame->final_blob, repo, &oid)) < 0)
+		goto on_error;
+	blame->final_buf = git_blob_rawcontent(blame->final_blob);
+	blame->final_buf_size = git_blob_rawsize(blame->final_blob);
+
+	git_array_clear(blame->line_index);
+	index_blob_lines(blame);
 
 	print_hunk_vector_full(&blame->hunks);
 	printf_hunk_vector_blame(&blame->hunks);
