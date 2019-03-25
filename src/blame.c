@@ -790,11 +790,6 @@ int git_blame_file(
 	if ((error = blame_internal(blame)) < 0)
 		goto on_error;
 
-	size_t iter;
-	git_blame_hunk *hunk_ptr;
-	const char *path_ptr;
-	git_blame__entry *ent_ptr;
-
 	/////////////////////////////////////////////////////////////////////////////
 	fprintf(stderr, "\n");
 	fprintf(stderr, "DEBUG: path: %s\n\n", blame->path);
