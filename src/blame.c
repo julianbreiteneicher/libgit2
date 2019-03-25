@@ -740,71 +740,8 @@ int git_blame_file(
 	//fprintf(stderr, "DEBUG: path: %s\n\n", blame->path);
 	//fprintf(stderr, "DEBUG: repository: %s\n\n", blame->repository->gitdir);
 	fprintf(stderr, "DEBUG: git_blame_options flags: %x\n\n", options->flags);
-	fprintf(stderr, "DEBUG: #hunks: %zu\n", blame->hunks.length);
-	git_vector_foreach(&blame->hunks, iter, hunk_ptr) {
-		fprintf(stderr, "DEBUG: hunks[%zu]:\n", iter);
-		fprintf(stderr, "DEBUG: final_start_line_number: %zu\n",
-				hunk_ptr->final_start_line_number);
-		fprintf(stderr, "DEBUG: lines_in_hunk: %zu\n",
-				hunk_ptr->lines_in_hunk);
-		fprintf(stderr, "DEBUG: final_commid_id: %s\n",
-				git_oid_tostr_s(&hunk_ptr->final_commit_id));
-		fprintf(stderr, "DEBUG: final_signature: %s <%s>\n",
-				hunk_ptr->final_signature->name, hunk_ptr->final_signature->email);
-		//fprintf(stderr, "DEBUG: orig_commit_id: %s\n",
-		//    git_oid_tostr_s(&hunk_ptr->orig_commit_id));
-		//fprintf(stderr, "DEBUG: orig_path: %s\n", hunk_ptr->orig_path);
-		//fprintf(stderr, "DEBUG: orig_start_line_number: %zu\n",
-		//    hunk_ptr->orig_start_line_number);
-		//fprintf(stderr, "DEBUG: orig_signature: %s <%s>\n",
-		//    hunk_ptr->orig_signature->name, hunk_ptr->orig_signature->email);
-		//fprintf(stderr, "DEBUG: final_signature: %p\n", hunk_ptr->final_signature);
-		//fprintf(stderr, "DEBUG: orig_signature: %p\n", hunk_ptr->orig_signature);
-	}
-	fprintf(stderr, "\n");
 
-	//fprintf(stderr, "DEBUG: #paths: %zu\n", blame->paths.length);
-	//git_vector_foreach(&blame->paths, iter, path_ptr) {
-	//  fprintf(stderr, "DEBUG: paths[%zu]: %s\n", iter, path_ptr);
-	//}
-	//fprintf(stderr, "\n");
-	//fprintf(stderr, "DEBUG: final_blob hash: %s\n",
-	//    git_oid_tostr_s(git_blob_id(blame->final_blob)));
-	//fprintf(stderr, "DEBUG: #line_index: %zu\n", blame->line_index.size);
-	//for (size_t i = 0; i < blame->line_index.size; i++) {
-	//  fprintf(stderr, "DEBUG: line_index[%zu]: %zu\n",
-	//      i, *git_array_get(blame->line_index, i));
-	//}
-	//fprintf(stderr, "\n");
-	//fprintf(stderr, "DEBUG: current_diff_line: %zu\n", blame->current_diff_line);
-	//if (!blame->current_hunk) {
-	//  fprintf(stderr, "DEBUG: current_hunk: NULL\n");
-	//} else {
-	//  fprintf(stderr, "DEBUG: current_hunk:\n");
-	//  git_blame_hunk *current_hunk = blame->current_hunk;
-	//  fprintf(stderr, "DEBUG: lines_in_hunk: %zu\n", current_hunk->lines_in_hunk);
-	//  fprintf(stderr, "DEBUG: commit hash: %s\n",
-	//      git_oid_tostr_s(&(current_hunk->final_commit_id)));
-	//  fprintf(stderr, "DEBUG: final_start_line_number: %zu\n",
-	//      current_hunk->final_start_line_number);
-	//}
-	//fprintf(stderr, "DEBUG: Scoreboard fields:\n");
-	//char *commit_hash = git_oid_tostr_s(git_commit_id(blame->final));
-	//fprintf(stderr, "DEBUG: final commit: %s\n", commit_hash);
-	//if (!blame->ent) {
-	//  fprintf(stderr, "DEBUG: ent: NULL\n");
-	//}
-	//for (ent_ptr = blame->ent; ent_ptr; ent_ptr = ent_ptr->next) {
-	//  git_blame__origin *suspect = ent_ptr->suspect;
-	//  char *commit_hash = git_oid_tostr_s(git_commit_id(suspect->commit));
-	//  fprintf(stderr, "DEBUG: ent suspect: %s - %s\n", commit_hash, suspect->path);
-	//}
-	//fprintf(stderr, "DEBUG: num_lines: %d\n", blame->num_lines);
-	////fprintf(stderr, "DEBUG: final_buf: %s\n", blame->final_buf);
-	////fprintf(stderr, "DEBUG: final_buf_size: %ld\n", blame->final_buf_size);
-	//fprintf(stderr, "DEBUG: End of Scoreboard fields.\n");
-	//fprintf(stderr, "\n");
-	/////////////////////////////////////////////////////////////////////////////
+	print_hunk_vector_full(&blame->hunks);
 
 	////////////////////////////////////////////////////
 	// TODO (julianbreiteneicher): Add blame update here
