@@ -375,7 +375,7 @@ typedef struct git_blame_workdir_diff_entry
 	size_t new_lines;
 } git_blame_workdir_diff_entry;
 
-static git_blame_workdir_diff_entry *new_git_blame_workdir_diff_entry(
+static git_blame_workdir_diff_entry *git_blame_workdir_diff_entry__alloc(
 		size_t old_start,
 		size_t old_lines,
 		size_t new_start,
@@ -394,7 +394,7 @@ static git_blame_workdir_diff_entry *new_git_blame_workdir_diff_entry(
 	return entry;
 }
 
-static void free_git_blame_workdir_diff_entry(git_blame_workdir_diff_entry *entry)
+static void git_blame_workdir_diff_entry__free(git_blame_workdir_diff_entry *entry)
 {
 	git__free(entry);
 }
@@ -416,7 +416,7 @@ typedef struct git_blame_workdir_diff {
 	git_vector entries;
 } git_blame_workdir_diff;
 
-static void free_git_blame_workdir_diff(git_blame_workdir_diff *diff)
+static void git_blame_workdir_diff__free(git_blame_workdir_diff *diff)
 {
 	size_t i;
 	git_blame_workdir_diff_entry *diff_entry;
@@ -425,13 +425,13 @@ static void free_git_blame_workdir_diff(git_blame_workdir_diff *diff)
 		return;
 
 	git_vector_foreach(&diff->entries, i, diff_entry)
-			free_git_blame_workdir_diff_entry(diff_entry);
+			git_blame_workdir_diff_entry__free(diff_entry);
 	git_vector_free(&diff->entries);
 
 	git__free(diff);
 }
 
-static git_blame_workdir_diff *new_git_blame_workdir_diff()
+static git_blame_workdir_diff *git_blame_workdir_diff__alloc()
 {
 	git_blame_workdir_diff *diff = git__calloc(1, sizeof(git_blame_workdir_diff));
 
@@ -440,7 +440,7 @@ static git_blame_workdir_diff *new_git_blame_workdir_diff()
 
 	if (git_vector_init(&diff->entries, 8, git_blame_workdir_diff_entry_cmp)
 			< 0) {
-		free_git_blame_workdir_diff(diff);
+		git_blame_workdir_diff__free(diff);
 		return NULL;
 	}
 
@@ -456,8 +456,8 @@ static int process_workdir_diff_hunk(
 	git_blame_workdir_diff *wd_diff = (git_blame_workdir_diff *)payload;
 
 	if (delta->status & GIT_DELTA_MODIFIED) {
-		entry = new_git_blame_workdir_diff_entry(hunk->old_start, hunk->old_lines,
-				hunk->new_start, hunk->new_lines);
+		entry = git_blame_workdir_diff_entry__alloc(hunk->old_start,
+				hunk->old_lines, hunk->new_start, hunk->new_lines);
 		if (!entry)
 			return GIT_ERROR;
 		git_vector_insert_sorted(&wd_diff->entries, entry, NULL);
@@ -575,24 +575,11 @@ static int merge_blame_workdir_diff(
 	git_signature *sig_uncommitted;
 	git_signature_now(&sig_uncommitted, "Not Committed Yet", "not.committed.yet");
 
-	//////////////////////////////////////////////////////////
-	fprintf(stderr, "\n");
-	git_vector_foreach(&wd_diff->entries, i, diff_entry) {
-		fprintf(stderr, "DEBUG: wd_diff_entry: (%zu, %zu, %zu, %zu)\n",
-				diff_entry->old_start, diff_entry->old_lines,
-				diff_entry->new_start, diff_entry->new_lines);
-	}
-	fprintf(stderr, "\n");
-	//////////////////////////////////////////////////////////
-
 	git_vector_foreach(&wd_diff->entries, i, diff_entry) {
 		/* shift old_start by the number of lines that have been added/removed by
 		 * previous diff_entries
 		*/
-		fprintf(stderr, "DEBUG: Updating diff_entry->old_start from %zu to",
-				diff_entry->old_start);
 		diff_entry->old_start += total_shift_count;
-		fprintf(stderr, " %zu\n", diff_entry->old_start);
 
 		if (diff_entry->new_lines > 0) {
 			/* lines are added, so we need to create a new hunk */
@@ -605,16 +592,11 @@ static int merge_blame_workdir_diff(
 		/* Get the old hunk that is modified by the diff_entry and split it if
 		 * necessary.
 		*/
-		fprintf(stderr, "DEBUG: trying to get hunk by line: %zu\n",
-				diff_entry->old_start);
-
 		git_vector_bsearch2(&old_hunk_index, &blame->hunks,
 				hunk_byfinalline_search_cmp, &diff_entry->old_start);
 		old_hunk = (git_blame_hunk*)git_blame_get_hunk_byindex(blame,
 				old_hunk_index);
 		assert(old_hunk && "Could not find hunk.");
-		fprintf(stderr, "DEBUG: old_hunk->start: %zu\n",
-				old_hunk->final_start_line_number);
 
 		if (diff_entry->new_lines >= diff_entry->old_lines) {
 			diff_entry_delta = diff_entry->new_lines - diff_entry->old_lines;
@@ -632,53 +614,28 @@ static int merge_blame_workdir_diff(
 		if (diff_entry->old_start >= old_hunk->final_start_line_number &&
 				diff_entry->old_start < (old_hunk->final_start_line_number +
 				old_hunk->lines_in_hunk - 1) && diff_entry->new_lines > 0) {
-			fprintf(stderr, "DEBUG: splitting at: %zu\n",
-					diff_entry->old_start - (old_hunk->final_start_line_number - 1));
 			split_hunk = split_hunk_in_vector(&blame->hunks, old_hunk,
 					diff_entry->old_start - (old_hunk->final_start_line_number - 1),
 					true);
-			fprintf(stderr, "DEBUG: split_hunk: start: %zu\n",
-					split_hunk->final_start_line_number);
-			fprintf(stderr, "DEBUG: split_hunk: size: %zu\n",
-					split_hunk->lines_in_hunk);
 		}
 
 		/* Check if we need to remove lines from the old hunk */
-		fprintf(stderr, "DEBUG: entry->old_lines: %zu\n", diff_entry->old_lines);
 		if (diff_entry->old_lines > 0) {
-			fprintf(stderr,
-					"DEBUG: Removing lines from old hunk(s): %ld\n",
-					diff_entry->old_lines);
 			remove_lines_from_hunk_vector(&blame->hunks, diff_entry->old_start,
 					diff_entry->old_lines);
-			print_hunk_vector_short(&blame->hunks);
 		}
 
 		/* Shift subsequent hunks if necessary */
-		print_hunk_vector_short(&blame->hunks);
-
 		if (diff_entry_delta != 0) {
-			//////////////////////////////////////////////////////////////////////////
-			// TODO: remove
-			git_blame_hunk *tmp_hunk =
-				(git_blame_hunk*)blame->hunks.contents[old_hunk_index];
-			fprintf(stderr, "DEBUG: Starting shifting at hunk (%zu, %zu)\n",
-					tmp_hunk->final_start_line_number, tmp_hunk->lines_in_hunk);
-			//////////////////////////////////////////////////////////////////////////
 			shift_hunk_index = old_hunk_index;
 			for (; shift_hunk_index < blame->hunks.length; shift_hunk_index++) {
 				shift_hunk = (git_blame_hunk*)blame->hunks.contents[shift_hunk_index];
 				if (shift_hunk->final_start_line_number > diff_entry->old_start) {
-					fprintf(stderr, "DEBUG: Shifting hunk (%zu, %zu) by %d\n",
-							shift_hunk->final_start_line_number, shift_hunk->lines_in_hunk,
-							diff_entry_delta);
 					shift_hunk->final_start_line_number += diff_entry_delta;
 				}
 			}
 			total_shift_count += diff_entry_delta;
 		}
-
-		print_hunk_vector_short(&blame->hunks);
 
 		/* insert new hunk if there is one (only if hunk adds lines) */
 		if (nhunk)
@@ -732,12 +689,6 @@ static int update_blame_with_uncommitted_changes(git_blame *blame)
 	git_blame_workdir_diff *wd_diff = NULL;
 	git_oid oid;
 
-	fprintf(stderr, "\n");
-	fprintf(stderr, "DEBUG: path: %s\n\n", blame->path);
-	fprintf(stderr, "DEBUG: repository: %s\n\n", blame->repository->gitdir);
-
-	print_hunk_vector_full(&blame->hunks);
-
 	if ((error = git_revparse_single(&obj, blame->repository, "HEAD^{tree}")) < 0)
 		goto on_error;
 
@@ -764,9 +715,7 @@ static int update_blame_with_uncommitted_changes(git_blame *blame)
 					&diff, blame->repository, tree, &diff_options)) < 0)
 		goto on_error;
 
-	fprintf(stderr, "DEBUG: diff->deltas.length: %zu\n", diff->deltas.length);
-
-	wd_diff =  new_git_blame_workdir_diff();
+	wd_diff =  git_blame_workdir_diff__alloc();
 	if (!wd_diff)
 		goto on_error;
 
@@ -789,13 +738,10 @@ static int update_blame_with_uncommitted_changes(git_blame *blame)
 	git_array_clear(blame->line_index);
 	index_blob_lines(blame);
 
-	print_hunk_vector_full(&blame->hunks);
-	printf_hunk_vector_blame(&blame->hunks);
-
 	error = 0;
 
 on_error:
-	free_git_blame_workdir_diff(wd_diff);
+	git_blame_workdir_diff__free(wd_diff);
 	git_diff_free(diff);
 	free(diff_file_paths.strings);
 	git_tree_free(tree);
