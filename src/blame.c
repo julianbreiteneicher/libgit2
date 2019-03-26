@@ -466,46 +466,6 @@ static int process_workdir_diff_hunk(
 	return 0;
 }
 
-static void print_hunk_vector_short(git_vector *vec)
-{
-	size_t i;
-	git_blame_hunk *hunk;
-	const char *sep = "";
-
-	fprintf(stderr, "Hunks: ");
-	git_vector_foreach(vec, i, hunk) {
-		fprintf(stderr, "%s(%zu, %zu)", sep,
-				hunk->final_start_line_number, hunk->lines_in_hunk);
-		sep = ", ";
-	}
-	fprintf(stderr, "\n");
-}
-
-static void print_hunk_vector_full(git_vector *vec)
-{
-	size_t iter;
-	git_blame_hunk *hunk_ptr;
-
-	git_vector_foreach(vec, iter, hunk_ptr) {
-		fprintf(stderr, "Hunks[%zu]:\n", iter);
-		fprintf(stderr, "Start line: %zu\n", hunk_ptr->final_start_line_number);
-		fprintf(stderr, "Num_lines: %zu\n", hunk_ptr->lines_in_hunk);
-		fprintf(stderr, "Commit id: %s\n\n", git_oid_tostr_s(&hunk_ptr->final_commit_id));
-	}
-}
-
-static void printf_hunk_vector_blame(git_vector *vec)
-{
-	size_t i, line;
-	git_blame_hunk *hunk_ptr;
-
-	git_vector_foreach(vec, i, hunk_ptr) {
-		for (line = 0; line < hunk_ptr->lines_in_hunk; line++) {
-			fprintf(stderr, "%s\n", git_oid_tostr_s(&hunk_ptr->final_commit_id));
-		}
-	}
-}
-
 static int remove_lines_from_hunk_vector(
 		git_vector *vec,
 		size_t start_lineno,
@@ -776,9 +736,6 @@ int git_blame_file(
 	git_blame *blame = NULL;
 	git_oid oid_head;
 	git_reference_name_to_id(&oid_head, repo, "HEAD");
-
-	// TODO (julianbreiteneicher): Include in VaRA / Remove
-	options->flags |= GIT_BLAME_INCLUDE_UNCOMMITTED_CHANGES;
 
 	assert(out && repo && path);
 	if ((error = normalize_options(&normOptions, options, repo)) < 0)
