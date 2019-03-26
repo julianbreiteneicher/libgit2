@@ -557,25 +557,26 @@ static int remove_lines_from_hunk_vector(
 
 static int merge_blame_workdir_diff(
 		git_blame *blame,
-		git_blame_workdir_diff *wd_diff,
-		const char *path)
+		git_blame_workdir_diff *wd_diff)
 {
+	int error = -1;
 	size_t i;
 	git_blame_workdir_diff_entry *diff_entry;
-
 	long total_shift_count = 0; /* offset of how much we have shifted so far */
 	size_t old_hunk_index;
 	git_blame_hunk *old_hunk;
 	git_blame_hunk *split_hunk;
 	int diff_entry_delta;
-	git_blame_hunk *nhunk = NULL;
+	git_blame_hunk *nhunk;
 	size_t shift_hunk_index;
-	git_blame_hunk *shift_hunk = NULL;
-
+	git_blame_hunk *shift_hunk;
 	git_signature *sig_uncommitted;
+
 	git_signature_now(&sig_uncommitted, "Not Committed Yet", "not.committed.yet");
 
 	git_vector_foreach(&wd_diff->entries, i, diff_entry) {
+		nhunk = NULL;
+
 		/* shift old_start by the number of lines that have been added/removed by
 		 * previous diff_entries
 		*/
@@ -584,7 +585,9 @@ static int merge_blame_workdir_diff(
 		if (diff_entry->new_lines > 0) {
 			/* lines are added, so we need to create a new hunk */
 			nhunk = new_hunk(diff_entry->new_start, diff_entry->new_lines,
-					diff_entry->new_start, path);
+					diff_entry->new_start, blame->path);
+			if (!nhunk)
+				goto on_error;
 			git_signature_dup(&nhunk->final_signature, sig_uncommitted);
 			git_signature_dup(&nhunk->orig_signature, sig_uncommitted);
 		}
@@ -610,19 +613,21 @@ static int merge_blame_workdir_diff(
 		 * We do not need to split if the diff_entry only removes lines and does
 		 * not add/modify any lines.
 		*/
-		split_hunk = NULL;
 		if (diff_entry->old_start >= old_hunk->final_start_line_number &&
 				diff_entry->old_start < (old_hunk->final_start_line_number +
 				old_hunk->lines_in_hunk - 1) && diff_entry->new_lines > 0) {
 			split_hunk = split_hunk_in_vector(&blame->hunks, old_hunk,
 					diff_entry->old_start - (old_hunk->final_start_line_number - 1),
 					true);
+			if (!split_hunk)
+				goto on_error;
 		}
 
 		/* Check if we need to remove lines from the old hunk */
 		if (diff_entry->old_lines > 0) {
-			remove_lines_from_hunk_vector(&blame->hunks, diff_entry->old_start,
-					diff_entry->old_lines);
+			error = remove_lines_from_hunk_vector(&blame->hunks,
+					diff_entry->old_start, diff_entry->old_lines);
+			assert(error == 0 && "Could not find hunk to remove lines from.");
 		}
 
 		/* Shift subsequent hunks if necessary */
@@ -638,11 +643,17 @@ static int merge_blame_workdir_diff(
 		}
 
 		/* insert new hunk if there is one (only if hunk adds lines) */
-		if (nhunk)
-			git_vector_insert_sorted(&blame->hunks, nhunk, NULL);
+		if (nhunk) {
+			if ((error = git_vector_insert_sorted(&blame->hunks, nhunk, NULL)) < 0)
+				goto on_error;
+		}
 	}
 
 	return 0;
+
+on_error:
+	free_hunk(nhunk);
+	return error;
 }
 
 static int git_blame_new_file(git_blame *blame)
@@ -723,8 +734,8 @@ static int update_blame_with_uncommitted_changes(git_blame *blame)
 					diff, NULL, NULL, process_workdir_diff_hunk, NULL, wd_diff)) < 0)
 		goto on_error;
 
-	// TODO: Add error handling
-	merge_blame_workdir_diff(blame, wd_diff, blame->path);
+	if ((error = merge_blame_workdir_diff(blame, wd_diff)) < 0)
+		goto on_error;
 
 	if ((error = git_blob_create_fromworkdir(
 					&oid, blame->repository, blame->path)) < 0)
